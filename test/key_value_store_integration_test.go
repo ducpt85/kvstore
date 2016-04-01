@@ -2,6 +2,7 @@ package test
 
 import (
 	"testing"
+	"sync"
 
 	"github.com/stretchr/testify/assert"
 
@@ -57,7 +58,7 @@ func BenchmarkKVStoreDelete(b *testing.B) {
 	result = kv
 }
 
-func benchmarkSingleRoutine(kv kvstore.KVStore, b *testing.B, done chan<- bool) {
+func benchmarkSingleRoutine(kv kvstore.KVStore, b *testing.B, wg *sync.WaitGroup) {
 	for i := 0; i < b.N; i++ {
 		key := string(i % 100)
 		kv.Set(key, i)
@@ -65,19 +66,19 @@ func benchmarkSingleRoutine(kv kvstore.KVStore, b *testing.B, done chan<- bool) 
 		valueSave, _ = value.(int)
 		kv.Delete(key)
 	}
-	done <- true
+	wg.Done()
 }
 
 func benchmarkConcurrent(count int, b *testing.B) {
-	done := make(chan bool)
+	var wg sync.WaitGroup
+    wg.Add(count)
+    
 	kv := kvstore.NewKVStore()
 	for i := 0; i < count; i++ {
-		go benchmarkSingleRoutine(kv, b, done)
+		go benchmarkSingleRoutine(kv, b, &wg)
 	}
 
-	for i := 0; i < count; i++ {
-		<-done
-	}
+	wg.Wait()
 }
 
 func BenchmarkConcurrent2(b *testing.B) {
